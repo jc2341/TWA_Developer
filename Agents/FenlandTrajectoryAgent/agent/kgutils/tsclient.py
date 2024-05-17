@@ -45,7 +45,7 @@ class TSClient:
             logger.info("TimeSeriesClient initialized successfully.")
         except Exception as ex:
             logger.error("Unable to initialise TS client.")
-            raise TSException("Unable to initialise TS client.") from ex
+            raise ex
 
     @contextmanager
     def connect(self):
