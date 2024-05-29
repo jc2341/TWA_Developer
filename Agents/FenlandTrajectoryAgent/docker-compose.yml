@@ -6,6 +6,9 @@ services:
     environment:
       - STACK_NAME=${STACK_NAME}
       # Target Blazegraph namespace
+      - DB_URL=jdbc:postgresql://host.docker.internal:3840/postgres
+      - SPARQL_QUERY_ENDPOINT=http://host.docker.internal:3840/blazegraph/namespace/gps_trajectory/sparql
+      - SPARQL_UPDATE_ENDPOINT=http://host.docker.internal:3840/blazegraph/namespace/gps_trajectory/sparql
       - NAMESPACE=gps_trajectory
       # Target layer name in geoserver, also table name in PostGIS
       - LAYERNAME=gps_trajectory

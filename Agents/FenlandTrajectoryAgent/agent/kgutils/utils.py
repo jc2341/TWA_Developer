@@ -15,7 +15,7 @@ logger = agentlogging.get_logger("prod")
 
 from agent.utils.stack_configs import DB_URL, DB_USER, DB_PASSWORD, SPARQL_QUERY_ENDPOINT, SPARQL_UPDATE_ENDPOINT
 # Define format of time series time entries: Year-Month-Day T hour:minute:second Z
-FORMAT = '%Y-%m-%dT%H:%M:%SZ'
+FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 
 PROPERTIES_FILE = os.path.abspath(os.path.join(Path(__file__).parent.parent, 'resources', 'properties.properties'))
 # Define PREFIXES for SPARQL queries (WITHOUT trailing '<' and '>')

@@ -112,7 +112,7 @@ from flask import Blueprint, request, jsonify
 import os
 import glob
 import logging
-from agent.utils.stack_configs import DB_URL, DB_USER, DB_PASSWORD
+from agent.utils.stack_configs import DB_URL, DB_USER, DB_PASSWORD,SPARQL_QUERY_ENDPOINT, SPARQL_UPDATE_ENDPOINT
 import agent.datainstantiation.gps_client as gdi
 from agent.utils.baselib_gateway import jpsBaseLibGW
 from agent.kgutils.kgclient import KGClient
@@ -125,6 +125,41 @@ logger = logging.getLogger(__name__)
 
 # Blueprint configuration
 gps_instantiation_bp = Blueprint('gps_instantiation_bp', __name__)
+
+@gps_instantiation_bp.route('/fenlandtrajectoryagent/load_and_preprocess', methods=['POST'])
+def load_and_preprocess():
+    try:
+        file_path = request.json.get('file_path')
+        if not file_path:
+            logger.error("File path is missing in the request.")
+            return jsonify({"error": "File path is missing in the request."}), 400
+
+        logger.info(f"Received request to load and preprocess files at: {file_path}")
+        csv_files = glob.glob(os.path.join(file_path, '*.csv'))
+        if not csv_files:
+            logger.error("No CSV files found at the specified path")
+            return jsonify({"error": "No CSV files found at the specified path"}), 400
+
+        results = []
+        for csv_file in csv_files:
+            logger.info(f"Loading and preprocessing file: {csv_file}")
+            gps_object = gdi.process_gps_csv_file(csv_file)
+            if not gps_object:
+                logger.warning(f"Failed to preprocess file: {csv_file}")
+                results.append({"file": csv_file, "status": "failed", "error": "Failed to preprocess file"})
+            else:
+                results.append({"file": csv_file, "status": "success"})
+
+        if all(res["status"] == "failed" for res in results):
+            logger.error("Failed to preprocess all files")
+            return jsonify({"error": "Failed to preprocess all files", "results": results}), 500
+
+        logger.info("Files loaded and preprocessed successfully")
+        return jsonify({"message": "Files loaded and preprocessed", "results": results}), 200
+
+    except Exception as e:
+        logger.error(f"Error in load_and_preprocess: {str(e)}")
+        return jsonify({"error": "Internal Server Error", "details": str(e)}), 500
 
 @gps_instantiation_bp.route('/fenlandtrajectoryagent/process_and_instantiate', methods=['POST'])
 def process_and_instantiate():

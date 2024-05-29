@@ -4,9 +4,14 @@ from agent.utils.baselib_gateway import jpsBaseLibGW
 from agent.utils.stack_configs import DB_URL, DB_USER, DB_PASSWORD
 from agent.errorhandling.exceptions import TSException
 from agent.datamodel.data_class import FORMAT, TIMECLASS, DATACLASS
+import os
+from pathlib import Path
 
 # Initialise logger instance (ensure consistent logger level)
 logger = agentlogging.get_logger('prod')
+
+class TSException(Exception):
+    """Raise in case of exception when using the TimeSeriesClient."""
 
 class TSClient:
     # Create ONE JVM module view on class level and import all required java classes
@@ -37,11 +42,15 @@ class TSClient:
             logger.info("Remote RDB Store client initialized successfully.")
         except Exception as ex:
             logger.error("Unable to initialise TS Remote Store client.")
-            raise TSException("Unable to initialise TS Remote Store client.") from ex
+            raise ex
 
         # 2) Initiliase TimeSeriesClient
         try:
+            # PROPERTY_FILE= os.path.abspath(os.path.join(Path(__file__).parent.parent,"datainstantiation", "resources","FenlandTrajectory.properties"))
             self.tsclient = TSClient.jpsBaseLibView.TimeSeriesClient(kg_client.kg_client, timeclass)
+            # self.tsclient = TSClient.jpsBaseLibView.TimeSeriesClient(timeclass, PROPERTY_FILE)
+            # self.tsclient = TSClient.jpsBaseLibView.TimeSeriesClient(kg_client.kg_client, timeclass, rdb_url, rdb_user, rdb_password)
+
             logger.info("TimeSeriesClient initialized successfully.")
         except Exception as ex:
             logger.error("Unable to initialise TS client.")
@@ -85,9 +94,27 @@ class TSClient:
 
         return timeseries
 
+    def init_timeseries(self, dataIRI, times, values, ts_type, time_format):
+        """
+        This method instantiates a new time series and immediately adds data to it.
+        
+        Arguments:
+            dataIRI (str): IRI of instance with hasTimeSeries relationship
+            times (list): List of times/dates
+            values (list): List of actual values
+            ts_type (Java class): Java class of time series values
+            time_format (str): Time format (e.g. "%Y-%m-%dT%H:%M:%SZ")
+        """
+
+        with self.connect() as conn:
+            self.tsclient.initTimeSeries([dataIRI], [ts_type], time_format, conn)
+            ts = TSClient.create_timeseries(times, [dataIRI], [values])
+            self.tsclient.addTimeSeriesData(ts, conn)
+        logger.info(f"Time series successfully initialised in KG and RDB for dataIRI: {dataIRI}")
+
     # def init_timeseries(self, dataIRI, times, values, ts_type, time_format):
     #     assert isinstance(dataIRI, list) and all(isinstance(x, str) for x in dataIRI), "dataIRI must be a list of strings"
-
+        
     #     try:
     #         with self.connect() as conn:
     #             logger.info(f"Initializing time series for dataIRI: {dataIRI}")
@@ -108,72 +135,35 @@ class TSClient:
     #             assert all(isinstance(v, list) for v in values), "values elements should be lists"
     #             assert all(all(isinstance(i, (int, float)) for i in v) for v in values), "values elements should contain numbers"
 
-    #             logger.info(f"Calling initTimeSeries with dataIRI: {dataIRI}")
-    #             self.tsclient.initTimeSeries([dataIRI], [ts_type] * len(dataIRI), time_format, conn)
-                
-    #             logger.info(f"Creating TimeSeries object with times: {times}")
-    #             ts = TSClient.create_timeseries(times, [dataIRI], [values])
-                
-    #             logger.info(f"Adding TimeSeries data to TSClient")
-    #             self.tsclient.addTimeSeriesData(ts, conn)
-                
-    #             logger.info(f"Time series successfully initialized in KG and RDB for dataIRI: {dataIRI}")
-            
+    #             # Operation 1: Initializing time series in the time series client
+    #             try:
+    #                 logger.info(f"Calling initTimeSeries with dataIRI: {dataIRI}")
+    #                 self.tsclient.initTimeSeries(dataIRI, [ts_type], time_format, conn)
+    #             except Exception as ex:
+    #                 logger.error(f"Failed to call initTimeSeries for dataIRI: {dataIRI}. Exception: {ex}")
+    #                 raise ex
+
+    #             # Operation 2: Creating a TimeSeries object
+    #             try:
+    #                 logger.info(f"Creating TimeSeries object with times: {times}")
+    #                 ts = TSClient.create_timeseries(times, dataIRI, values)
+    #             except Exception as ex:
+    #                 logger.error(f"Failed to create TimeSeries object for dataIRI: {dataIRI}. Exception: {ex}")
+    #                 raise ex
+
+    #             # Operation 3: Adding TimeSeries data to the client
+    #             try:
+    #                 # logger.info(f"Adding TimeSeries data to TSClient")
+    #                 self.tsclient.addTimeSeriesData(ts, conn)
+    #             except Exception as ex:
+    #                 # logger.error(f"Failed to add TimeSeries data for dataIRI: {dataIRI}. Exception: {ex}")
+    #                 raise ex
+
+    #             # logger.info(f"Time series successfully initialized in KG and RDB for dataIRI: {dataIRI}")
+
     #     except Exception as ex:
-    #         logger.error(f"Failed to initialize time series for dataIRI: {dataIRI}. Exception: {ex}")
-    #         raise TSException(f"Failed to initialize time series for dataIRI: {dataIRI}.") from ex
-    def init_timeseries(self, dataIRI, times, values, ts_type, time_format):
-        assert isinstance(dataIRI, list) and all(isinstance(x, str) for x in dataIRI), "dataIRI must be a list of strings"
-        
-        try:
-            with self.connect() as conn:
-                logger.info(f"Initializing time series for dataIRI: {dataIRI}")
-                
-                # Detailed logging for dataIRI, times, and values
-                logger.debug(f"dataIRI: {dataIRI}")
-                logger.debug(f"times: {times}")
-                logger.debug(f"values: {values}")
-                logger.debug(f"ts_type: {ts_type}")
-                logger.debug(f"time_format: {time_format}")
-
-                # Ensure dataIRI, times, and values are lists of the correct type
-                assert isinstance(dataIRI, list), "dataIRI should be a list"
-                assert all(isinstance(i, str) for i in dataIRI), "dataIRI elements should be strings"
-                assert isinstance(times, list), "times should be a list"
-                assert all(isinstance(i, str) for i in times), "times elements should be strings"
-                assert isinstance(values, list), "values should be a list of lists"
-                assert all(isinstance(v, list) for v in values), "values elements should be lists"
-                assert all(all(isinstance(i, (int, float)) for i in v) for v in values), "values elements should contain numbers"
-
-                # Operation 1: Initializing time series in the time series client
-                try:
-                    logger.info(f"Calling initTimeSeries with dataIRI: {dataIRI}")
-                    self.tsclient.initTimeSeries(dataIRI, [ts_type] * len(dataIRI), time_format, conn)
-                except Exception as ex:
-                    logger.error(f"Failed to call initTimeSeries for dataIRI: {dataIRI}. Exception: {ex}")
-                    raise Exception(f"Failed to call initTimeSeries for dataIRI: {dataIRI}.") from ex
-
-                # Operation 2: Creating a TimeSeries object
-                try:
-                    logger.info(f"Creating TimeSeries object with times: {times}")
-                    ts = TSClient.create_timeseries(times, dataIRI, values)
-                except Exception as ex:
-                    logger.error(f"Failed to create TimeSeries object for dataIRI: {dataIRI}. Exception: {ex}")
-                    raise Exception(f"Failed to create TimeSeries object for dataIRI: {dataIRI}.") from ex
-
-                # Operation 3: Adding TimeSeries data to the client
-                try:
-                    logger.info(f"Adding TimeSeries data to TSClient")
-                    self.tsclient.addTimeSeriesData(ts, conn)
-                except Exception as ex:
-                    logger.error(f"Failed to add TimeSeries data for dataIRI: {dataIRI}. Exception: {ex}")
-                    raise Exception(f"Failed to add TimeSeries data for dataIRI: {dataIRI}.") from ex
-
-                logger.info(f"Time series successfully initialized in KG and RDB for dataIRI: {dataIRI}")
-
-        except Exception as ex:
-            logger.error(f"Failed to initialize time series for dataIRI: {dataIRI}. General exception: {ex}")
-            raise TSException(f"Failed to initialize time series for dataIRI: {dataIRI}.") from ex
+    #         logger.error(f"Failed to initialize time series for dataIRI: {dataIRI}. General exception: {ex}")
+    #         raise ex
 
 
     def add_ts_data(self, dataIRI, times, values):
@@ -193,7 +183,7 @@ class TSClient:
                 logger.info(f"Time series data successfully added to dataIRI: {dataIRI}")
         except Exception as ex:
             logger.error(f"Failed to add time series data to dataIRI: {dataIRI}. Exception: {ex}")
-            raise TSException(f"Failed to add time series data to dataIRI: {dataIRI}.") from ex
+            raise ex
 
     def replace_ts_data(self, dataIRI, times, values):
         """
@@ -218,7 +208,7 @@ class TSClient:
                 logger.info(f"Time series data successfully replaced for dataIRI: {dataIRI}")
         except Exception as ex:
             logger.error(f"Failed to replace time series data for dataIRI: {dataIRI}. Exception: {ex}")
-            raise TSException(f"Failed to replace time series data for dataIRI: {dataIRI}.") from ex
+            raise ex
 
     def retrieve_timeseries(self, dataIRI, lowerbound=None, upperbound=None):
         """
@@ -240,7 +230,7 @@ class TSClient:
             return times, values
         except Exception as ex:
             logger.error(f"Failed to retrieve time series data for dataIRI: {dataIRI}. Exception: {ex}")
-            raise TSException(f"Failed to retrieve time series data for dataIRI: {dataIRI}.") from ex
+            raise ex
 
     def delete_timeseries(self, dataIRI: str):
         try:
@@ -251,4 +241,4 @@ class TSClient:
                 logger.info(f"Time series successfully deleted for dataIRI: {dataIRI}")
         except Exception as ex:
             logger.error(f"Error deleting GPS trajectory time series for dataIRI: {dataIRI}. Exception: {ex}")
-            raise TSException(f"Error deleting GPS trajectory time series for dataIRI: {dataIRI}.") from ex
+            raise ex
