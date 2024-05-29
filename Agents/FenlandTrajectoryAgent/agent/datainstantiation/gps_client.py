@@ -101,11 +101,43 @@ def instantiate_gps_data(gps_object, kg_client, ts_client, double_class):
             kg_client.performUpdate(query)
         
         # Ensure times are properly formatted
-            times = gps_object['times']
-            values = gps_object['timeseries'][ts]
-            ts_type = jpsBaseLibView.java.lang.Double.TYPE
-            ts_client.init_timeseries(dataIRI=dataIRI, times=times, values=values, ts_type=ts_type, time_format=FORMAT)
-            logger.info(f"Data for {gps_object['object']} successfully instantiated.")
+        times = gps_object['times']
+        values_list = [gps_object['timeseries'][ts] for ts in gps_object['timeseries']]
+        ts_type = jpsBaseLibView.java.lang.Double.TYPE
+        time_format = FORMAT
+            
+        # Detailed logging before calling init_timeseries
+        logger.debug(f"DataIRIs: {dataIRIs}")
+        logger.debug(f"Times: {times}")
+        logger.debug(f"Values: {values_list}")
+        logger.debug(f"TS Type: {ts_type}")
+        logger.debug(f"Time Format: {time_format}")
+
+
+       # Logging the types of the variables to ensure correct types
+        logger.debug(f"DataIRIs: {dataIRIs} - Type: {type(dataIRIs)}")
+        for dataIRI in dataIRIs:
+            logger.debug(f"DataIRI element: {dataIRI} - Type: {type(dataIRI)}")
+        logger.debug(f"Times: {times} - Type: {type(times)}")
+        for t in times:
+            logger.debug(f"Time element: {t} - Type: {type(t)}")
+        logger.debug(f"Values: {values_list} - Type: {type(values_list)}")
+        for v in values_list:
+            logger.debug(f"Value element: {v} - Type: {type(v)}")
+        logger.debug(f"TS Type: {ts_type} - Type: {type(ts_type)}")
+        logger.debug(f"Time Format: {time_format} - Type: {type(time_format)}")
+
+
+        # Iterate over each dataIRI and corresponding values
+        for dataIRI, value in zip(dataIRIs, values_list):
+            logger.info(f"Initializing time series for dataIRI: {dataIRI}")
+            logger.info(f"Times: {times}")
+            logger.info(f"Values: {value}")
+        ######### Core function for instantiation #######
+            ts_client.init_timeseries(dataIRI=dataIRI, times=times, values=value, ts_type=ts_type, time_format=time_format)
+
+        #ts_client.init_timeseries(dataIRI=dataIRI, times=times, values=values, ts_type=ts_type, time_format=FORMAT)
+        logger.info(f"Data for {gps_object['object']} successfully instantiated.")
     except Exception as e:
         logger.error(f"Error instantiating data for {gps_object['object']}: {e}")
         raise
